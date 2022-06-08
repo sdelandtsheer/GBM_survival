@@ -448,7 +448,7 @@ class SurvivalModel:
 
     def plot_data(self, feature: str = None):
         time, survival_prob = kaplan_meier_estimator(
-            self.y_train[self.status_str], self.y_train[self.time_to_event_str]
+            self.y_train[:, 0], self.y_train[:, 1]
         )
         fig, ax = plt.subplots(2, 1, figsize=(9, 6))
         ax[0].step(time, survival_prob, where="post")
