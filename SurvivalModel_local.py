@@ -73,7 +73,7 @@ class SurvivalModel:
             self.status_str = "e.tdm"
             self.time_to_event_str = "t.tdm"
         elif X_train is not None and y_train is not None:
-            if isinstance(y_train, pd.Dataframe):
+            if isinstance(y_train, pd.DataFrame):
                 self.status_str = y_train.columns[0]
                 self.time_to_event_str = y_train.columns[1]
                 y_train = y_train.to_numpy()

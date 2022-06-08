@@ -1,5 +1,5 @@
 
-from SurvivalModel import SurvivalModel
+from SurvivalModel_local import SurvivalModel
 
 model = SurvivalModel()
 model.plot_data(feature="er")
