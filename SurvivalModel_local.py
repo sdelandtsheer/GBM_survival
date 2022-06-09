@@ -450,6 +450,7 @@ class SurvivalModel:
         ax.grid(True)
         ax.set_xlabel("alpha")
         ax.set_ylabel("coefficient")
+        plt.savefig("Coefficients.png")
 
     def plot_data(self, feature: str = None):
         time, survival_prob = kaplan_meier_estimator(
