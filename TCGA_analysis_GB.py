@@ -42,7 +42,7 @@ def preprocess_and_merge(df, expression_data, list_of_genes, GenesFilter):
     complete_df_wt_unique.rename(
         columns={"paper_Survival..months.": "time", "paper_Vital.status..1.dead.": "bool_dead"}, inplace=True)
     final_df = complete_df_wt_unique.dropna(subset=["time", "bool_dead"])  # drop samples when either target is empty
-    final_df = final_df.dropna(axis=1)  # drop columns that have missing data
+    final_df = final_df.dropna(axis=1)  # drop columns that have missing data ########### here we drop transcriptome info
     for col in final_df.columns:  # drop when only one value
         if len(final_df[col].unique()) == 1:
             final_df.drop(col, inplace=True, axis=1)
@@ -57,12 +57,22 @@ def preprocess_and_merge(df, expression_data, list_of_genes, GenesFilter):
     return final_df
 
 
+def quantize(df, q):
+    result = pd.DataFrame(0, index=df.index, columns=df.columns)
+    if isinstance(q, float):
+        q = [q]
+    for this_q in q:
+        quantiles = df.quantile(this_q)
+        df_q = df > quantiles
+        result = result + df_q.astype(int)
+
+    return result
+
 ###########################################
 ###########################################
 
 
 df, expression_data, list_of_genes = import_files()
-
 final_df = preprocess_and_merge(df, expression_data, list_of_genes, False)
 final_dummy_df = preprocess_and_merge(df, expression_data, list_of_genes, True)
 
@@ -75,21 +85,33 @@ X_train = final_df.drop(["time", "bool_dead"], axis=1)
 X_train_dummy = final_dummy_df.drop(["time", "bool_dead"], axis=1)
 X_train_dummy = X_train_dummy.iloc[:, 4:]
 
-quantiles = X_train_dummy.quantile()
-X_train_dummy_q = X_train_dummy > quantiles
-#######################
+
+X_train_dummy_q = quantize(X_train_dummy, 0.5)
+
+#####################
+X_train_dummy_q['combined'] = (X_train_dummy_q['ZDHHC18'] +
+                               X_train_dummy_q['PTPRZ1'] +
+                               X_train_dummy_q['STAT2']
+                               ) - \
+                              (X_train_dummy_q['SAFB'] +
+                               X_train_dummy_q['LCOR'] +
+                               X_train_dummy_q['STK40']
+                               )
+
+X_train_dummy_q = X_train_dummy_q.sort_values(by='combined')
 
 gbm_model_dummy = SurvivalModel(X_train=X_train_dummy_q, y_train=y_train)
-
 gbm_model_dummy.fit_cox_ph()
-gbm_model_dummy.plot_data(feature="ARID3A")
-coeffs = gbm_model_dummy.coeffs
+coeffs = (gbm_model_dummy.coeffs).sort_values(ascending=False, key=abs)
+
+
 scores = gbm_model_dummy.fit_score_features()
 gbm_model_dummy.plot_coefficients(gbm_model_dummy.coeffs, 5)
 
 
+for feature in gbm_model_dummy.X_train.columns:
+    gbm_model_dummy.plot_data(feature="combined")
 
-gbm_model.plot_data(feature="gender")
 
 
 
