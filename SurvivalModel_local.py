@@ -426,6 +426,9 @@ class SurvivalModel:
     def plot_coefficients(self, coefs, n_highlight):
         _, ax = plt.subplots(figsize=(9, 6))
         n_features = coefs.shape[0]
+
+        if isinstance(coefs, pd.Series):
+            coefs = coefs.to_frame()
         alphas = coefs.columns
         for row in coefs.itertuples():
             ax.semilogx(alphas, row[1:], ".-", label=row.Index)
