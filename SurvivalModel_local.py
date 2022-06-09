@@ -68,15 +68,20 @@ class SurvivalModel:
     """
 
     def __init__(self, X_train=None, y_train=None, random_state=42):
+        print("init")
         if X_train is None and y_train is None:
             X_train, y_train = load_breast_cancer()
             self.status_str = "e.tdm"
             self.time_to_event_str = "t.tdm"
         elif X_train is not None and y_train is not None:
+            print("both not none")
             if isinstance(y_train, pd.DataFrame):
                 self.status_str = y_train.columns[0]
                 self.time_to_event_str = y_train.columns[1]
+                y_train = y_train.apply(tuple, axis=1)
+                print(y_train)
                 y_train = y_train.to_numpy()
+                print(y_train)
             elif isinstance(y_train, np.ndarray):
                 self.status_str = y_train.dtype.names[0]
                 self.time_to_event_str = y_train.dtype.names[1]
