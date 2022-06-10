@@ -73,10 +73,12 @@ class SurvivalModel:
             self.status_str = "e.tdm"
             self.time_to_event_str = "t.tdm"
         elif X_train is not None and y_train is not None:
-            if isinstance(y_train, pd.Dataframe):
+            if isinstance(y_train, pd.DataFrame):
+                s = y_train.dtypes
                 self.status_str = y_train.columns[0]
                 self.time_to_event_str = y_train.columns[1]
-                y_train = y_train.to_numpy()
+                y_train = np.array([tuple(x) for x in y_train.values], dtype=list(zip(s.index, s)))
+                # print(y_train)
             elif isinstance(y_train, np.ndarray):
                 self.status_str = y_train.dtype.names[0]
                 self.time_to_event_str = y_train.dtype.names[1]
@@ -167,7 +169,7 @@ class SurvivalModel:
 
             enc, trans, estim = [s[1] for s in pipe.steps]
             self.estimator = estim
-            self.coeffs = pd.Series(
+            self.coeffs = pd.Series( #TODO: this bugs, size shape mismatch
                 self.estimator.coef_, index=self.X_train_ohe.columns
             )
             self.score = self.estimator.score(self.X_train_ohe, self.y_train)
@@ -424,6 +426,9 @@ class SurvivalModel:
     def plot_coefficients(self, coefs, n_highlight):
         _, ax = plt.subplots(figsize=(9, 6))
         n_features = coefs.shape[0]
+
+        if isinstance(coefs, pd.Series):
+            coefs = coefs.to_frame()
         alphas = coefs.columns
         for row in coefs.itertuples():
             ax.semilogx(alphas, row[1:], ".-", label=row.Index)
@@ -445,6 +450,7 @@ class SurvivalModel:
         ax.grid(True)
         ax.set_xlabel("alpha")
         ax.set_ylabel("coefficient")
+        plt.savefig("Coefficients.png")
 
     def plot_data(self, feature: str = None):
         time, survival_prob = kaplan_meier_estimator(
