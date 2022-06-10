@@ -169,7 +169,7 @@ class SurvivalModel:
 
             enc, trans, estim = [s[1] for s in pipe.steps]
             self.estimator = estim
-            self.coeffs = pd.Series(
+            self.coeffs = pd.Series( #TODO: this bugs, size shape mismatch
                 self.estimator.coef_, index=self.X_train_ohe.columns
             )
             self.score = self.estimator.score(self.X_train_ohe, self.y_train)

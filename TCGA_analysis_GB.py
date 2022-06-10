@@ -73,44 +73,110 @@ def quantize(df, q):
 
 
 df, expression_data, list_of_genes = import_files()
-final_df = preprocess_and_merge(df, expression_data, list_of_genes, False)
-final_dummy_df = preprocess_and_merge(df, expression_data, list_of_genes, True)
+random_genes = expression_data.reindex(np.random.permutation(expression_data.index)).iloc[:, 2000:2036]
+final_df_all_genes = preprocess_and_merge(df, expression_data, list_of_genes, False)
+final_df_select = preprocess_and_merge(df, expression_data, list_of_genes, True)
+final_df_random = preprocess_and_merge(df, random_genes, list_of_genes, False)
 
 
+y_train = final_df_all_genes.loc[:, ["bool_dead", "time"]] # make time-to-event and boolean status
 
-y_train = final_df.loc[:, ["time", "bool_dead"]] # make time-to-event and boolean status
-y_train = y_train[y_train.columns[::-1]]
+X_train_all_genes = final_df_all_genes.drop(["time", "bool_dead"], axis=1).iloc[:, 4:]
+X_train_select = final_df_select.drop(["time", "bool_dead"], axis=1).iloc[:, 4:]
+X_train_random = final_df_random.drop(["time", "bool_dead"], axis=1).iloc[:, 4:]
 
-X_train = final_df.drop(["time", "bool_dead"], axis=1)
-X_train_dummy = final_dummy_df.drop(["time", "bool_dead"], axis=1)
-X_train_dummy = X_train_dummy.iloc[:, 4:]
+X_train_all_genes_q = quantize(X_train_all_genes, 0.5)
+X_train_select_q = quantize(X_train_select, 0.5)
+X_train_random_q = quantize(X_train_random, 0.5)
 
-
-X_train_dummy_q = quantize(X_train_dummy, 0.5)
 
 #####################
-X_train_dummy_q['combined'] = (X_train_dummy_q['ZDHHC18'] +
-                               X_train_dummy_q['PTPRZ1'] +
-                               X_train_dummy_q['STAT2']
-                               ) - \
-                              (X_train_dummy_q['SAFB'] +
-                               X_train_dummy_q['LCOR'] +
-                               X_train_dummy_q['STK40']
-                               )
 
-X_train_dummy_q = X_train_dummy_q.sort_values(by='combined')
-
-gbm_model_dummy = SurvivalModel(X_train=X_train_dummy_q, y_train=y_train)
-gbm_model_dummy.fit_cox_ph()
-coeffs = (gbm_model_dummy.coeffs).sort_values(ascending=False, key=abs)
+#######################
 
 
-scores = gbm_model_dummy.fit_score_features()
-gbm_model_dummy.plot_coefficients(gbm_model_dummy.coeffs, 5)
+
+gbm_model_all_genes = SurvivalModel(X_train=X_train_all_genes_q, y_train=y_train)
+gbm_model_select = SurvivalModel(X_train=X_train_select_q, y_train=y_train)
+gbm_model_random = SurvivalModel(X_train=X_train_random_q, y_train=y_train)
+
+# gbm_model_all_genes.fit_cox_ph()
+gbm_model_select.fit_cox_ph()
+# gbm_model_random.fit_cox_ph()
+
+# gbm_model_select.fit_cox_ph(mode="parsimonious")
+# gbm_model_select.fit_cox_ph(mode="elastic-net")
+
+coeffs_select = (gbm_model_select.coeffs).sort_values(ascending=False, key=abs)
+# coeffs_random = (gbm_model_random.coeffs).sort_values(ascending=False, key=abs)
+# coeffs_select_p = (gbm_model_select.coeffs).sort_values(ascending=False, key=abs)
+# coeffs_select_en = (gbm_model_select.coeffs).sort_values(ascending=False, key=abs)
+
+signature = {}
+for this_coeff in coeffs_select.index:
+    if coeffs_select[this_coeff] < 0:
+        signature[this_coeff] = -1
+    else:
+        signature[this_coeff] = 1
 
 
-for feature in gbm_model_dummy.X_train.columns:
-    gbm_model_dummy.plot_data(feature="combined")
+
+
+X_train_select_q['combined'] = 0
+
+for gene in signature.keys():
+    X_train_select_q['combined'] = X_train_select_q['combined'] + (signature[gene] * X_train_select_q[gene])
+
+X_train_select_q['signature'] = (X_train_select_q['combined'] < 0).astype(int)
+
+
+
+X_train_select_q = X_train_select_q.sort_values(by='combined')
+gbm_model_select = SurvivalModel(X_train=X_train_select_q, y_train=y_train)
+gbm_model_select.plot_data(feature="signature")
+gbm_model_select.fit_cox_ph()
+
+
+#######################################
+df_x = X_train_select_q
+df_y = y_train
+#KM curve
+from lifelines import KaplanMeierFitter
+from matplotlib import pyplot as plt
+group1=df_y[df_x['signature']==1]
+group2=df_y[df_x['signature']==0]
+T=group1['time']
+E=group1['bool_dead']
+T1=group2['time']
+E1=group2['bool_dead']
+
+kmf = KaplanMeierFitter()
+
+ax = plt.subplot(111)
+ax = kmf.fit(T, E, label="Group 1-Treatment").plot(ax=ax)
+ax = kmf.fit(T1, E1, label="Group 2 - Placebo").plot(ax=ax)
+plt.savefig("2-groups")
+
+#logrank_test
+from lifelines.statistics import logrank_test
+results=logrank_test(T,T1,event_observed_A=E, event_observed_B=E1)
+results.print_summary()
+
+
+
+
+
+
+
+
+
+
+scores = gbm_model_select.fit_score_features()
+gbm_model_select.plot_coefficients(gbm_model_select.coeffs, 5)
+
+
+for feature in gbm_model_select.X_train.columns:
+    gbm_model_select.plot_data(feature="combined")
 
 
 
